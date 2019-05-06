@@ -49,33 +49,79 @@ void access_cache(char operation, int address)
 
 void cache_sys::snoop(int address)
 {
-    int block_head =  adress - (adress % block_size);
-    int address_without_offset = adress / block_size;
-    int index = 0; //TODO calculate the index
+    int block_head =  address - (adress % block_size);
+    int set_and_tag = address >> this->BSize;
+    int tag = set_and_tag >> this->L1Assoc;
+    int set = set_and_tag % this->L1_way_entries_num;
+
     for (int i = 0; i < this->L1_way_entries_num; i++)
     {
-        if (this->L1[i][index].tag == block_head)
+        if (this->L1[i][set].tag == tag)
         {
-            this->L1[i][index].invalid = true;
+            this->L1[i][set].invalid = true;
             //update the lru
             for (int j = 0; j < this->L1_way_entries_num; j++)
             {
-                if(this->L1[j][index].LRU > this->L1[i][index].LRU)
-                    (this->L1[j][index].LRU)--;
+                if(this->L1[j][set].LRU > this->L1[i][set].LRU)
+                    (this->L1[j][set].LRU)--;
             }
             return;
         }
     }
 };
 
-int find_place(int level)
+int cache_sys::find_place(int level, int address)
 {
-    /*
-     * search in level for invalid
-     * else
-     *      remove block by lru
-     *      if needed - snoop
-     */
+    if (level == 1 || level == 2)
+    {
+        int set_and_tag = address >> this->BSize;
+        int set = set_and_tag % this->L1_way_entries_num;
+        block** cache;
+        int num_of_ways;
+        if (level == 1)
+        {
+            cache = this->L1;
+            num_of_ways = this->L1_way_num;
+        }
+        else
+        {
+            cache = this->L2;
+            num_of_ways = this->L2_way_num;
+        }
+        //search for empty place
+        for (int i = 0; i < num_of_ways; i++)
+        {
+            if (cache[i][set].invalid == true)
+                return i;
+        }
+
+        //else select a block to replace
+        for (int i = 0; i < num_of_ways; i++)
+        {
+            if (cache[i][set].LRU == num_of_ways - 1)
+            {
+                if (level == 2)
+                    this->snoop(address);
+                return i;
+            }
+        }
+    }
+    else    //victim cache
+    {
+        //search for empty place
+        for (int i = 0; i < 4; i++)
+        {
+            if (this->victimCache[i].invalid == true)
+                return i;
+        }
+
+        //else select a block to replace
+        for (int i = 0; i < 4; i++)
+        {
+            if (this->victimCache[i].LRU == num_of_ways - 1)
+                return i;
+        }
+    }
 }
 
 int remove(int level)

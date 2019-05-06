@@ -76,7 +76,7 @@ public:
     };
 
     void snoop(int address);
-
+    int find_place(int level, int address);
 };
 
 void access_cache(char operation, int address);
