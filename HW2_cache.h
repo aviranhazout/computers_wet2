@@ -39,6 +39,11 @@ public:
     int L2Cyc;
     int WrAlloc;
     int VicCache;
+    int block_size;
+    int L1_way_num;
+    int L2_way_num;
+    int L1_way_entries_num;
+    int L2_way_entries_num;
 
 
     cache_sys(int MemCyc, int BSize, int L1Size, int L2Size, int L1Assoc, int L2Assoc,
@@ -63,10 +68,14 @@ public:
         for (int i = 0; i < L2Ways; i++){
             L2[i] = new block[L2numTags];
         }
-
+        block_size = pow(2,BSize);
+        L1_way_num = L1Ways;
+        L2_way_num = L2Ways;
+        L1_way_entries_num = L1numTags;
+        L2_way_entries_num = L2numTags;
     };
 
-
+    void snoop(int address);
 
 };
 

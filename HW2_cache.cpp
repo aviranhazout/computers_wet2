@@ -47,13 +47,25 @@ void access_cache(char operation, int address)
 // MRU = 0  LRU = array-size
 // search: true = hit
 
-void snoop(int address){
-    /*
-     * search in L1 for address
-     * if exists
-     *      mark invalid
-     *      update lru
-     */
+void cache_sys::snoop(int address)
+{
+    int block_head =  adress - (adress % block_size);
+    int address_without_offset = adress / block_size;
+    int index = 0; //TODO calculate the index
+    for (int i = 0; i < this->L1_way_entries_num; i++)
+    {
+        if (this->L1[i][index].tag == block_head)
+        {
+            this->L1[i][index].invalid = true;
+            //update the lru
+            for (int j = 0; j < this->L1_way_entries_num; j++)
+            {
+                if(this->L1[j][index].LRU > this->L1[i][index].LRU)
+                    (this->L1[j][index].LRU)--;
+            }
+            return;
+        }
+    }
 };
 
 int find_place(int level)
