@@ -2,6 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include "HW2_cache.h"
 
 
 using std::string;
@@ -62,6 +63,8 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	cache_sys CS(MemCyc, BSize, L1Size, L2Size, L1Assoc,L2Assoc,
+         L1Cyc,L2Cyc,WrAlloc,VicCache);
 
 	while (getline(file, line))
 	{
@@ -87,6 +90,7 @@ int main(int argc, char *argv[]) {
 
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
+		access_cache(operation, num);
 	}
 
 	printf("L1miss=%.03f ", L1MissRate);
@@ -95,4 +99,3 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
