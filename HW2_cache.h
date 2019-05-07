@@ -44,12 +44,17 @@ public:
     int L2_way_num;
     int L1_way_entries_num;
     int L2_way_entries_num;
+    int L1Hit;
+    int L1Access;
+    int L2Hit;
+    int L2Access;
 
 
     cache_sys(int MemCyc, int BSize, int L1Size, int L2Size, int L1Assoc, int L2Assoc,
               int L1Cyc, int L2Cyc, int WrAlloc, int VicCache) : MemCyc(MemCyc), BSize(BSize),
               L1Size(L1Size), L2Size(L2Size), L1Assoc(L1Assoc), L2Assoc(L2Assoc), L1Cyc(L1Cyc),
-              L2Cyc(L2Cyc), WrAlloc(WrAlloc), VicCache(VicCache), totalTime(0), totalAcc(0){
+              L2Cyc(L2Cyc), WrAlloc(WrAlloc), VicCache(VicCache), totalTime(0), totalAcc(0), L1Hit(0),
+              L1Access(0), L2Hit(0), L2Access(0){
 
         if(VicCache == 1){
             victimCache = new block[4];
@@ -77,6 +82,10 @@ public:
 
     void snoop(int address);
     int find_place(int level, int address);
+    bool search_in_cache(int level, int address);
+    void update_lru(int level, int min_lru)
+
+
 };
 
 void access_cache(char operation, int address);

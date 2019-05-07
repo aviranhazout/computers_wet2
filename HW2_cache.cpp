@@ -4,6 +4,8 @@
 
 #include "HW2_cache.h"
 
+#define VICTIM_CACHE_SIZE 4
+
 void access_cache(char operation, int address)
 {
     /*if (address exists in L1)
@@ -46,10 +48,15 @@ void access_cache(char operation, int address)
 
 // MRU = 0  LRU = array-size
 // search: true = hit
-
+/**
+ * Snoop - checks higher cache lever (L1) for identical blocks in L1 and L2
+ * If exists in L1, marks it as invalid
+ * !! does not mark L2 block as invalid !!
+ * @param address
+ */
 void cache_sys::snoop(int address)
 {
-    int block_head =  address - (adress % block_size);
+    int block_head =  address - (address % block_size);
     int set_and_tag = address >> this->BSize;
     int tag = set_and_tag >> this->L1Assoc;
     int set = set_and_tag % this->L1_way_entries_num;
@@ -118,7 +125,7 @@ int cache_sys::find_place(int level, int address)
         //else select a block to replace
         for (int i = 0; i < 4; i++)
         {
-            if (this->victimCache[i].LRU == num_of_ways - 1)
+            if (this->victimCache[i].LRU == VICTIM_CACHE_SIZE - 1)    //victim cache is always size 4 blocks
                 return i;
         }
     }
@@ -131,8 +138,40 @@ int remove(int level)
      */
 }
 
-void update_lru(int level, int min_lru)
+
+/**
+ * Given a cache level and an minimum LRU, update all LRU's above give min
+ * @param level: cache level
+ * @param min_lru: all LRU rates above need to be decreased by 1
+ */
+void cache_sys::update_lru(int level, int min_lru)
 {
+    block **cache;
+    int num_of_ways;
+    switch (level) {
+        case 1:
+            cache = this->L1;
+            num_of_ways = this->L1_way_num;
+            //increase L1 access attempts
+            this->L1Access++;
+            break;
+        case 2:
+            cache = this->L2;
+            num_of_ways = this->L2_way_num;
+            //increase L1 access attempts
+            this->L2Access++;
+            break;
+    }
+    for (int i = 0; i < num_of_ways; i++) {
+        if (cache[i][set].tag == set){
+        if (level == 1)
+        this->L1Hit++;
+            else
+            this->L2Hit++;
+                return i;
+                }
+                return -1;
+    }
     /*
      * update the lru of all the  with at least min_lru
      * {after inserting)
@@ -142,7 +181,44 @@ void update_lru(int level, int min_lru)
      */
 }
 
-bool search_in_cache(int level, int address)
-{
 
+/**
+ * Finds address within given cache level, updates number of access to each level, and updates if hit
+ * @param level: cache level to check
+ * @param address: address to find
+ * @return
+ */
+bool cache_sys::search_in_cache(int level, int address)
+{
+    int set_and_tag = address >> this->BSize;
+    block **cache;
+    int num_of_ways;
+    int set;
+        switch (level) {
+            case 1:
+                cache = this->L1;
+                num_of_ways = this->L1_way_num;
+                set = set_and_tag % this->L1_way_entries_num;
+                //increase L1 access attempts
+                this->L1Access++;
+                break;
+            case 2:
+                cache = this->L2;
+                num_of_ways = this->L2_way_num;
+                set = set_and_tag % this->L2_way_entries_num;
+                //increase L1 access attempts
+                this->L2Access++;
+                break;
+        }
+        //search for empty place
+        for (int i = 0; i < num_of_ways; i++) {
+            if (cache[i][set].tag == set){
+                if (level == 1)
+                    this->L1Hit++;
+                else
+                    this->L2Hit++;
+                return i;
+        }
+            return -1;
+    }
 }
