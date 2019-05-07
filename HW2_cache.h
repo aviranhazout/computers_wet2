@@ -48,7 +48,7 @@ public:
     int L1Access;
     int L2Hit;
     int L2Access;
-
+    int access_time;
 
     cache_sys(int MemCyc, int BSize, int L1Size, int L2Size, int L1Assoc, int L2Assoc,
               int L1Cyc, int L2Cyc, int WrAlloc, int VicCache) : MemCyc(MemCyc), BSize(BSize),
@@ -78,17 +78,20 @@ public:
         L2_way_num = L2Ways;
         L1_way_entries_num = L1numTags;
         L2_way_entries_num = L2numTags;
+        access_time = 0;
     };
 
-    void snoop(int address);
+    bool snoop(int address);
     int find_place(int level, int address);
     bool search_in_cache(int level, int address);
-    void update_lru(int level, int min_lru)
-
-
+    void update_lru(int level, int min_lru);
+    int get_lru(int level, int address);
+    void mark_dirty(int level, int address);
+    void copy_data(block* from, block* to);
+    void get_block(int level, int address, block* ret);
 };
 
-void access_cache(char operation, int address);
+void access_cache(cache_sys CS, char operation, int address);
 
 
 #endif //COMPUTERS_WET2_HW2_CACHE_H

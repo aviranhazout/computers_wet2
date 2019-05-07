@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
 
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
-		access_cache(operation, num);
+		access_cache(CS, operation, num);
 	}
 
 	printf("L1miss=%.03f ", L1MissRate);
