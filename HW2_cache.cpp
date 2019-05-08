@@ -5,7 +5,9 @@
 #include "HW2_cache.h"
 
 #define VICTIM_CACHE_SIZE 4
+#define VICTIM_CACHE_ACCESS_TIME 1
 
+//the tag will be different for each level, we need to find a solution for this
 void access_cache(cache_sys CS, char operation, int address)
 {
     block* to;
@@ -21,13 +23,12 @@ void access_cache(cache_sys CS, char operation, int address)
     {   //found in L2 , doesn't exist in L1
         CS.update_lru(2, CS.get_lru(2, address));
         CS.access_time += (CS.L1Access + CS.L2Access);
-        if (CS.WrAlloc == 1 && operation == 'w')
+        if (CS.WrAlloc == 0 && operation == 'w')
             CS.mark_dirty(2,address);
         else    //copy to L1
         {
             int way = CS.find_place(1,address);
             int set_and_tag = address >> CS.BSize;
-            int tag = set_and_tag >> CS.L1Assoc;
             int set = set_and_tag % CS.L1_way_entries_num;
             to = &(CS.L1[way][set]);
             if (!(to->invalid) && to->dirty)
@@ -39,7 +40,52 @@ void access_cache(cache_sys CS, char operation, int address)
                 to->dirty = true;
         }
     }
-    else    //victim-cache or memory
+    else if (CS.VicCache == 1 && CS.search_in_cache(3,address))  //found in victim-cache
+    {
+        CS.access_time += (CS.L1Access + CS.L2Access + VICTIM_CACHE_ACCESS_TIME);
+        if (CS.WrAlloc == 0 && operation == 'w')
+            CS.mark_dirty(3,address);
+        else
+        {   //we want to copy the data
+            block tmp = new block;
+            block* vic_block;
+            block* L2_block;
+            block* L1_block;
+            CS.get_block(3, address, vic_block);
+            CS.copy_data(vic_block, &tmp);
+            //tmp.tag = (tmp.tag) / CS.L2_way_num;
+            from->invalid = true;
+            int way2 = CS.find_place(2,address);
+            int set_and_tag2 = address >> CS.BSize;
+            int set2 = set_and_tag2 % CS.L2_way_entries_num;
+            L2_block = &(CS.L2[way2][set2]);
+            if (!(L2_block->invalid))
+            {
+                CS.copy_data(L2_block, vic_block)
+                //vic_block->tag = (vic_block->tag * CS.L2_way_entries_num)
+                for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
+                {
+                    CS.victimCache[i].LRU++;
+                }
+            }
+            int way1 = CS.find_place(1,address);
+            int set_and_tag1 = address >> CS.BSize;
+            int set1 = set_and_tag1 % CS.L1_way_entries_num;
+            L1_block = &(CS.L1[way1][set1]);
+            if (!(L1_block->invalid) && L1_block->dirty)
+                CS.mark_dirty(2,address);
+            CS.copy_data(&tmp, L2_block);
+            CS.update_lru(2, CS.L2_way_num);
+
+            CS.copy_data(L2_block, L1_block);
+            CS.update_lru(1, CS.L1_way_num);
+
+            if (operation == 'w')
+                L1_block->dirty = true;
+
+        }
+    }
+    else    //copy from memory
     {
 
     }
@@ -151,14 +197,14 @@ int cache_sys::find_place(int level, int address)
     else    //victim cache
     {
         //search for empty place
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
         {
             if (this->victimCache[i].invalid == true)
                 return i;
         }
 
         //else select a block to replace
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
         {
             if (this->victimCache[i].LRU == VICTIM_CACHE_SIZE - 1)    //victim cache is always size 4 blocks
                 return i;
@@ -227,7 +273,7 @@ void cache_sys::copy_data(block* from, block* to)
 {
     to->dirty = from->dirty;
     from->dirty = false;
-    to->LRU = 0;
+    to->LRU = -1;
     to->tag = from->tag;
     to->invalid = false;
 }
@@ -235,26 +281,32 @@ void cache_sys::copy_data(block* from, block* to)
 void cache_sys::get_block(int level, int address, block* ret)
 {
     int set_and_tag = address >> this->BSize;
-    int set = set_and_tag % this->L1_way_entries_num;
-    block **cache;
-    int num_of_ways;
-    if (level == 1)
-    {
-        cache = this->L1;
-        num_of_ways = this->L1_way_num;
+
+    if (levvel == 1 || level == 2) {
+        int set = set_and_tag % this->L1_way_entries_num;
+        block **cache;
+        int num_of_ways;
+        if (level == 1) {
+            cache = this->L1;
+            num_of_ways = this->L1_way_num;
+        } else {
+            cache = this->L2;
+            num_of_ways = this->L2_way_num;
+        }
+        //search for empty place
+        for (int i = 0; i < num_of_ways; i++) {
+            if (cache[i][set].tag == tag) {
+                ret = &(cache[i][set]);
+                return;
+            }
+        }
     }
-    else
-    {
-        cache = this->L2;
-        num_of_ways = this->L2_way_num;
-    }
-    //search for empty place
-    for (int i = 0; i < num_of_ways; i++)
-    {
-        if (cache[i][set].tag == tag)
-        {
-            ret = &(cache[i][set]);
-            return;
+    else {
+        for (int i = 0; i < VICTIM_CACHE_SIZE; i++) {
+            if (cache[i][set].tag == set_and_tag) {
+                ret = &(cache[i][set]);
+                return;
+            }
         }
     }
 }
