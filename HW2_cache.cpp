@@ -7,7 +7,41 @@
 #define VICTIM_CACHE_SIZE 4
 #define VICTIM_CACHE_ACCESS_TIME 1
 
-//the tag will be different for each level, we need to find a solution for this
+/*if (address exists in L1)
+ *      update lru in L1
+ *      update trace data
+ *      update dirty
+ *else if (address exists in L2)
+ *      update lru in L2
+ *      if (write allocate or read-op)
+ *          find empty place or remove some block in L1 (update dirty)
+ *          copy to L1
+ *          update lru in L1
+ *      else
+ *          update dirty bi
+ *      update the trace data
+ *else if(victim and address exists in victim)
+ *      find empty place or remove some block in L2
+ *      if removed
+ *          snoop in L1
+ *      find empty place or remove some block in L1
+ *      copy to L2
+ *      update lru in L2
+ *      copy to L1
+ *      update lru in L1
+ *      remove from victim cache
+ *      update trace data
+ *  else    --fetching from mem
+ *      find empty place or remove some block in L2
+ *      if removed
+ *          snoop in L1
+ *      find empty place or remove some block in L1
+ *      copy to L2
+ *      update lru in L2
+ *      copy to L1
+ *      update lru in L1
+ *      update trace data
+ */
 void access_cache(cache_sys CS, char operation, int address)
 {
     block* to;
@@ -24,7 +58,15 @@ void access_cache(cache_sys CS, char operation, int address)
         CS.update_lru(2, CS.get_lru(2, address));
         CS.access_time += (CS.L1Access + CS.L2Access);
         if (CS.WrAlloc == 0 && operation == 'w')
-            CS.mark_dirty(2,address);
+        {
+            block* tmp_block;
+            int tmp_lru;
+            CS.mark_dirty(2, address);
+            CS.get_block(2, address, tmp_block);
+            tmp_lru = tmp_block->LRU;
+            tmp_block->LRU = -1;
+            CS.update_lru(2,tmp_lru);
+        }
         else    //copy to L1
         {
             int way = CS.find_place(1,address);
@@ -32,9 +74,17 @@ void access_cache(cache_sys CS, char operation, int address)
             int set = set_and_tag % CS.L1_way_entries_num;
             to = &(CS.L1[way][set]);
             if (!(to->invalid) && to->dirty)
-                CS.mark_dirty(2,address);
+            {
+                block* tmp_block;
+                int tmp_lru;
+                CS.mark_dirty(2, address);
+                CS.get_block(2, address, tmp_block);
+                tmp_lru = tmp_block->LRU;
+                tmp_block->LRU = -1;
+                CS.update_lru(2,tmp_lru);
+            }
             CS.get_block(2,address,from);
-            CS.copy_data(from,to);
+            CS.copy_data(from, to, 1);
             CS.update_lru(1, to->LRU);
             if (operation == 'w')
                 to->dirty = true;
@@ -52,32 +102,37 @@ void access_cache(cache_sys CS, char operation, int address)
             block* L2_block;
             block* L1_block;
             CS.get_block(3, address, vic_block);
-            CS.copy_data(vic_block, &tmp);
-            //tmp.tag = (tmp.tag) / CS.L2_way_num;
+            CS.copy_data(vic_block, &tmp, 2);
             from->invalid = true;
             int way2 = CS.find_place(2,address);
-            int set_and_tag2 = address >> CS.BSize;
+            int set_and_tag2 = address / CS.block_size;
             int set2 = set_and_tag2 % CS.L2_way_entries_num;
             L2_block = &(CS.L2[way2][set2]);
             if (!(L2_block->invalid))
             {
-                CS.copy_data(L2_block, vic_block)
-                //vic_block->tag = (vic_block->tag * CS.L2_way_entries_num)
+                CS.copy_data(L2_block, vic_block, 3)
                 for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
-                {
                     CS.victimCache[i].LRU++;
-                }
             }
             int way1 = CS.find_place(1,address);
-            int set_and_tag1 = address >> CS.BSize;
+            int set_and_tag1 = address / CS.block_size;
             int set1 = set_and_tag1 % CS.L1_way_entries_num;
             L1_block = &(CS.L1[way1][set1]);
             if (!(L1_block->invalid) && L1_block->dirty)
-                CS.mark_dirty(2,address);
-            CS.copy_data(&tmp, L2_block);
+            {
+                block* tmp_block;
+                int tmp_lru;
+                CS.mark_dirty(2, address);
+                CS.get_block(2, address, tmp_block);
+                tmp_lru = tmp_block->LRU;
+                tmp_block->LRU = -1;
+                CS.update_lru(2,tmp_lru);
+            }
+            CS.copy_data(&tmp, L2_block, 2);
             CS.update_lru(2, CS.L2_way_num);
+            free(tmp);
 
-            CS.copy_data(L2_block, L1_block);
+            CS.copy_data(L2_block, L1_block, 1);
             CS.update_lru(1, CS.L1_way_num);
 
             if (operation == 'w')
@@ -87,44 +142,51 @@ void access_cache(cache_sys CS, char operation, int address)
     }
     else    //copy from memory
     {
+        if (CS.VicCache == 1)
+            CS.access_time += (CS.L1Access + CS.L2Access + VICTIM_CACHE_ACCESS_TIME + CS.MemCyc);
+        else
+            CS.access_time += (CS.L1Access + CS.L2Access + CS.MemCyc);
+        if (CS.WrAlloc == 1 || operation == 'r')
+        {
+            block* L2_block;
+            block* L1_block;
+            int way2 = CS.find_place(2,address);
+            int set_and_tag2 = address / CS.block_size;
+            int set2 = set_and_tag2 % CS.L2_way_entries_num;
+            L2_block = &(CS.L2[way2][set2]);
+            if (!(L2_block->invalid) && CS.VicCache == 1)
+            {
+                int vic_place = CS.find_place(3, address);
+                block* vic_block = &(CS.VicCache[vic_place]);
+                CS.copy_data(L2_block, vic_block, 3)
+                for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
+                    CS.victimCache[i].LRU++;
+            }
+            CS.copy_from_memory(L2_block, address);
+            CS.update_lru(2, CS.L2_way_num);
+
+            int way1 = CS.find_place(1,address);
+            int set_and_tag1 = address / CS.block_size;
+            int set1 = set_and_tag1 % CS.L1_way_entries_num;
+            L1_block = &(CS.L1[way1][set1]);
+            if (!(L1_block->invalid) && L1_block->dirty)
+            {
+                block* tmp_block;
+                int tmp_lru;
+                CS.mark_dirty(2, address);
+                CS.get_block(2, address, tmp_block);
+                tmp_lru = tmp_block->LRU;
+                tmp_block->LRU = -1;
+                CS.update_lru(2,tmp_lru);
+            }
+            CS.copy_data(L2_block, L1_block, 1);
+            CS.update_lru(1, CS.L1_way_num);
+
+            if (operation == 'w')
+                L1_block->dirty = true;
+        }
 
     }
-    /*if (address exists in L1)
-     *{
-     *      update lru in L1                                                    V
-     *      update the trace data                                               V
-     *      update dirty bit if needed                                          V
-     *else if (address exists in L2)
-     *      update lru in L2                                                    V
-     *      if (write allocate and write-op)
-     *          find empty place or remove some block in L1                     V
-     *          copy to L1 (don't forget to move the dirty bit if needed)       V
-     *          update lru in L1                                                V
-     *      else if(write-op)
-     *          update dirty bit if needed                                      V
-     *      update the trace data                                               V
-     *else
-     *      if(victim and address exists in victim) read or write and write-allocate
-     *          find empty place or remove some block in L2
-     *          if removed
-     *              snoop in L1
-     *          find empty place or remove some block in L1
-     *          copy to L2 (don't forget to move the dirty bit if needed)
-     *          update lru in L2
-     *          copy to L1 (don't forget to move the dirty bit if needed)
-     *          update lru in L1
-     *          update the trace data
-     *      else    --fetching from mem
-     *          find empty place or remove some block in L2
-     *          if removed
-     *              snoop in L1
-     *          find empty place or remove some block in L1
-     *          copy to L2 (don't forget to move the dirty bit if needed)
-     *          update lru in L2
-     *          copy to L1 (don't forget to move the dirty bit if needed)
-     *          update lru in L1
-     *          update the trace data
-     */
 }
 
 // MRU = 0  LRU = array-size
@@ -269,13 +331,32 @@ void cache_sys::mark_dirty(int level, int address)
     block_to_find->dirty = true;
 }
 
-void cache_sys::copy_data(block* from, block* to)
+void cache_sys::copy_data(block* from, block* to, int to_level)
 {
+    int tag;
+    if (to_level == 1)
+        tag = from->set_and_tag / this->L1_way_entries_num;
+    else if (to_level == 2)
+        tag = from->set_and_tag / this->L2_way_entries_num;
+    else
+        tag = from->set_and_tag;
     to->dirty = from->dirty;
     from->dirty = false;
     to->LRU = -1;
-    to->tag = from->tag;
+    to->tag = tag;
     to->invalid = false;
+    to->set_and_tag = from->set_and_tag;
+}
+
+void cache_sys::copy_from_memory(block* to, int address)
+{
+    int set_and_tag = address / this->block_size;
+    int tag = set_and_tag / this->L2_way_entries_num;
+    to->dirty = false;
+    to->LRU = false;
+    to.tag = tag;
+    to->invalid = false;
+    to->set_and_tag = set_and_tag;
 }
 
 void cache_sys::get_block(int level, int address, block* ret)

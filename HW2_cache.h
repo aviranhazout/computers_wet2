@@ -18,6 +18,7 @@ public:
     bool dirty;
     int LRU;
     bool invalid;
+    int set_and_tag;
 
     block(): LRU(0), invalid(true){};
 };
@@ -87,7 +88,8 @@ public:
     void update_lru(int level, int min_lru);
     int get_lru(int level, int address);
     void mark_dirty(int level, int address);
-    void copy_data(block* from, block* to);
+    void copy_data(block* from, block* to, int to_level);
+    void copy_from_memory(block* to, int address);
     void get_block(int level, int address, block* ret);
 };
 
