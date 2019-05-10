@@ -61,20 +61,20 @@ public:
             victimCache = new block[4];
         }
 
-        int L1Ways = pow(2,L1Assoc);
-        int L1numTags = pow(2,L1Size-L1Assoc-BSize);
+        int L1Ways = (int)pow(2,L1Assoc);
+        int L1numTags = (int)pow(2,L1Size-L1Assoc-BSize);
         L1 = new block*[L1Ways];
         for (int i = 0; i < L1Ways; i++){
             L1[i] = new block[L1numTags];
         }
 
-        int L2Ways = pow(2,L2Assoc);
-        int L2numTags = pow(2,L2Size-L2Assoc-BSize);
+        int L2Ways = (int)pow(2,L2Assoc);
+        int L2numTags = (int)pow(2,L2Size-L2Assoc-BSize);
         L2 = new block*[L2Ways];
         for (int i = 0; i < L2Ways; i++){
             L2[i] = new block[L2numTags];
         }
-        block_size = pow(2,BSize);
+        block_size = (int)pow(2,BSize);
         L1_way_num = L1Ways;
         L2_way_num = L2Ways;
         L1_way_entries_num = L1numTags;
@@ -82,6 +82,7 @@ public:
         access_time = 0;
     };
 
+    void write_back(int address);
     bool snoop(int address);
     int find_place(int level, int address);
     bool search_in_cache(int level, int address);

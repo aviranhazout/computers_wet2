@@ -50,6 +50,10 @@ void access_cache(cache_sys CS, char operation, int address)
     block* from;
     if (CS.search_in_cache(1,address))
     {   //found in L1
+        int way = CS.find_place(1,address);
+        int set_and_tag = address >> CS.BSize;
+        int set = set_and_tag % CS.L1_way_entries_num;
+        CS.L1[way][set].LRU = -1;
         CS.update_lru(1, CS.get_lru(1, address));
         if (operation == 'w')
             CS.mark_dirty(1,address);
@@ -60,15 +64,7 @@ void access_cache(cache_sys CS, char operation, int address)
         CS.update_lru(2, CS.get_lru(2, address));
         CS.access_time += (CS.L1Access + CS.L2Access);
         if (CS.WrAlloc == 0 && operation == 'w')
-        {
-            block* tmp_block;
-            int tmp_lru;
-            CS.mark_dirty(2, address);
-            CS.get_block(2, address, tmp_block);
-            tmp_lru = tmp_block->LRU;
-            tmp_block->LRU = -1;
-            CS.update_lru(2,tmp_lru);
-        }
+            CS.write_back(address);
         else    //copy to L1
         {
             int way = CS.find_place(1,address);
@@ -76,15 +72,7 @@ void access_cache(cache_sys CS, char operation, int address)
             int set = set_and_tag % CS.L1_way_entries_num;
             to = &(CS.L1[way][set]);
             if (!(to->invalid) && to->dirty)
-            {
-                block* tmp_block;
-                int tmp_lru;
-                CS.mark_dirty(2, address);
-                CS.get_block(2, address, tmp_block);
-                tmp_lru = tmp_block->LRU;
-                tmp_block->LRU = -1;
-                CS.update_lru(2,tmp_lru);
-            }
+                CS.write_back(address);
             CS.get_block(2,address,from);
             CS.copy_data(from, to, 1);
             CS.update_lru(1, to->LRU);
@@ -121,15 +109,7 @@ void access_cache(cache_sys CS, char operation, int address)
             int set1 = set_and_tag1 % CS.L1_way_entries_num;
             L1_block = &(CS.L1[way1][set1]);
             if (!(L1_block->invalid) && L1_block->dirty)
-            {
-                block* tmp_block;
-                int tmp_lru;
-                CS.mark_dirty(2, address);
-                CS.get_block(2, address, tmp_block);
-                tmp_lru = tmp_block->LRU;
-                tmp_block->LRU = -1;
-                CS.update_lru(2,tmp_lru);
-            }
+                CS.write_back(address);
             CS.copy_data(&tmp, L2_block, 2);
             CS.update_lru(2, CS.L2_way_num);
             free(tmp);
@@ -172,15 +152,7 @@ void access_cache(cache_sys CS, char operation, int address)
             int set1 = set_and_tag1 % CS.L1_way_entries_num;
             L1_block = &(CS.L1[way1][set1]);
             if (!(L1_block->invalid) && L1_block->dirty)
-            {
-                block* tmp_block;
-                int tmp_lru;
-                CS.mark_dirty(2, address);
-                CS.get_block(2, address, tmp_block);
-                tmp_lru = tmp_block->LRU;
-                tmp_block->LRU = -1;
-                CS.update_lru(2,tmp_lru);
-            }
+                CS.write_back(address);
             CS.copy_data(L2_block, L1_block, 1);
             CS.update_lru(1, CS.L1_way_num);
 
@@ -194,6 +166,16 @@ void access_cache(cache_sys CS, char operation, int address)
 // MRU = 0  LRU = array-size
 // search: true = hit
 
+void cache_sys::write_back(int address)
+{
+    block *tmp_block;
+    int tmp_lru;
+    this->mark_dirty(2, address);
+    this->get_block(2, address, tmp_block);
+    tmp_lru = tmp_block->LRU;
+    tmp_block->LRU = -1;
+    this->update_lru(2, tmp_lru);
+}
 /**
  * Snoop - checks higher cache lever (L1) for identical blocks in L1 and L2
  * If exists in L1, marks it as invalid
@@ -243,7 +225,7 @@ int cache_sys::find_place(int level, int address)
         //search for empty place
         for (int i = 0; i < num_of_ways; i++)
         {
-            if (cache[i][set].invalid == true)
+            if (cache[i][set].invalid)
                 return i;
         }
 
@@ -263,7 +245,7 @@ int cache_sys::find_place(int level, int address)
         //search for empty place
         for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
         {
-            if (this->victimCache[i].invalid == true)
+            if (this->victimCache[i].invalid)
                 return i;
         }
 
@@ -281,34 +263,27 @@ int cache_sys::find_place(int level, int address)
  * @param level: cache level
  * @param min_lru: all LRU rates above need to be decreased by 1
  */
-void cache_sys::update_lru(int level, int min_lru)
+void cache_sys::update_lru(int level, int max_lru)
 {
     block **cache;
     int num_of_ways = this->get_num_ways(level);
-    switch (level) {
+    switch (level)
+    {
         case 1:
             cache = this->L1;
-            //increase L1 access attempts
-            this->L1Access++;
             break;
         case 2:
             cache = this->L2;
-            //increase L1 access attempts
-            this->L2Access++;
             break;
     }
-    for (int i = 0; i < num_of_ways; i++) {
-        if (cache[i][set].tag == set){
-        if (level == 1)
-        this->L1Hit++;
-            else
-            this->L2Hit++;
-                return i;
-                }
-                return -1;
+    for (int i = 0; i < num_of_ways; i++)
+    {
+        if (cache[i][set].LRU < max_lru)
+            (cache[i][set].LRU)++;
     }
+    return -1;
     /*
-     * update the lru of all the  with at least min_lru
+     * update the lru of all the  with at most max_lru
      * {after inserting)
      *
      * if we want to update all the blocks min_lru = 0
@@ -365,6 +340,7 @@ void cache_sys::get_block(int level, int address, block* ret)
 
     if (level == 1 || level == 2) {
         int set = set_and_tag % this->L1_way_entries_num;
+        int tag = set_and_tag / this->L1_way_entries_num;
         block **cache;
         int num_of_ways;
         if (level == 1) {
@@ -404,29 +380,31 @@ bool cache_sys::search_in_cache(int level, int address)
     int num_of_ways = get_num_ways(level);
     int set = this->get_set_from_address(level, address);
     int tag = this->get_tag_from_address(level, address);
-        switch (level) {
-            case 1:
-                cache = this->L1;
-                //increase L1 access attempts
-                this->L1Access++;
-                break;
-            case 2:
-                cache = this->L2;
-                //increase L1 access attempts
-                this->L2Access++;
-                break;
-        }
-        //search for empty place
-        for (int i = 0; i < num_of_ways; i++) {
-            if (cache[i][set].tag == tag){
-                if (level == 1)
-                    this->L1Hit++;
-                else
-                    this->L2Hit++;
-                return i;
-        }
-            return -1;
+    switch (level) {
+        case 1:
+            cache = this->L1;
+            //increase L1 access attempts
+            this->L1Access++;
+            break;
+        case 2:
+            cache = this->L2;
+            //increase L1 access attempts
+            this->L2Access++;
+            break;
     }
+        //search for empty place
+    for (int i = 0; i < num_of_ways; i++)
+    {
+        if (cache[i][set].tag == tag)
+        {
+            if (level == 1)
+                this->L1Hit++;
+            else
+                this->L2Hit++;
+            return i;
+        }
+    }
+    return -1;
 }
 
 
