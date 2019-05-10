@@ -91,6 +91,9 @@ public:
     void copy_data(block* from, block* to, int to_level);
     void copy_from_memory(block* to, int address);
     void get_block(int level, int address, block* ret);
+    int get_set_from_address(int level, int address);
+    int get_tag_from_address(int level, int address);
+    int get_num_ways(int level);
 };
 
 void access_cache(cache_sys CS, char operation, int address);
