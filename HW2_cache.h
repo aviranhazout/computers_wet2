@@ -20,7 +20,7 @@ public:
     bool invalid;
     int set_and_tag;
 
-    block(): LRU(0), invalid(true){};
+    block(): LRU(0), invalid(true), tag(0), dirty(false), set_and_tag(0){};
 };
 
 class cache_sys {
@@ -86,7 +86,7 @@ public:
     bool snoop(int address);
     int find_place(int level, int address);
     bool search_in_cache(int level, int address);
-    void update_lru(int level, int min_lru);
+    void update_lru(int level, int min_lru, int address);
     int get_lru(int level, int address);
     void mark_dirty(int level, int address);
     void copy_data(block* from, block* to, int to_level);
