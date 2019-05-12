@@ -6,10 +6,11 @@
 #define COMPUTERS_WET2_HW2_CACHE_H
 
 #include <cmath>
+//#include "HW2_cache.cpp"
 
-double L1MissRate = 0;
-double L2MissRate = 0;
-double avgAccTime = 0;
+double L1MissRate;
+double L2MissRate;
+double avgAccTime;
 
 
 class block{
@@ -101,3 +102,4 @@ void access_cache(cache_sys CS, char operation, int address);
 
 
 #endif //COMPUTERS_WET2_HW2_CACHE_H
+

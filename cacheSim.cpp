@@ -2,7 +2,7 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
-#include "HW2_cache.h"
+#include "HW2_cache.cpp"
 
 
 using std::string;
@@ -99,3 +99,4 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
+

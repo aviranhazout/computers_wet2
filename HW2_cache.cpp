@@ -44,15 +44,15 @@
  *      update lru in L1
  *      update trace data
  */
-void access_cache(cache_sys CS, char operation, int address)
+void access_cache(cache_sys CS, char operation, unsigned long int address)
 {
     block* to;
     block* from;
     if (CS.search_in_cache(1,address))
     {   //found in L1
         int way = CS.find_place(1,address);
-        int set_and_tag = address >> CS.BSize;
-        int set = set_and_tag % CS.L1_way_entries_num;
+        //int set_and_tag = address >> CS.BSize;
+        int set = CS.get_set_from_address(1, address);
         CS.L1[way][set].LRU = -1;
         CS.update_lru(1, CS.get_lru(1, address), address);
         if (operation == 'w')
@@ -68,8 +68,8 @@ void access_cache(cache_sys CS, char operation, int address)
         else    //copy to L1
         {
             int way = CS.find_place(1,address);
-            int set_and_tag = address >> CS.BSize;
-            int set = set_and_tag % CS.L1_way_entries_num;
+            //int set_and_tag = address >> CS.BSize;
+            int set = CS.get_set_from_address(1, address);
             to = &(CS.L1[way][set]);
             if (!(to->invalid) && to->dirty)
                 CS.write_back(address);
@@ -184,9 +184,9 @@ void cache_sys::write_back(int address)
  */
 bool cache_sys::snoop(int address)
 {
-    int set_and_tag = address >> this->BSize;
-    int tag = set_and_tag >> this->L1Assoc;
-    int set = set_and_tag % this->L1_way_entries_num;
+    //int set_and_tag = address >> this->BSize;
+    int tag = this->get_tag_from_address(1, address);
+    int set = this->get_set_from_address(1, address);
 
     for (int i = 0; i < this->L1_way_entries_num; i++)
     {
@@ -208,8 +208,8 @@ int cache_sys::find_place(int level, int address)
 {
     if (level == 1 || level == 2)
     {
-        int set_and_tag = address >> this->BSize;
-        int set = set_and_tag % this->L1_way_entries_num;
+        //int set_and_tag = address >> this->BSize;
+        int set = this->get_set_from_address(1, address);
         block** cache;
         int num_of_ways;
         if (level == 1)
@@ -425,7 +425,7 @@ int remove(int level)
  * @return
  */
 int cache_sys::get_num_ways(int level){
-    return level == 1 ?  this->L1Assoc : this->L2Access;
+    return level == 1 ?  this->L1_way_num : this->L2_way_num;
 }
 
 
@@ -455,7 +455,7 @@ int cache_sys::get_tag_from_address(int level, int address){
  */
 int cache_sys::get_set_from_address(int level, int address) {
     if (get_num_ways(level) == 1 || level == VICTIM_CACHE_LEVEL) return 0;
-    int set = address >> this->BSize;
+    int set = address / this->BSize;
     set = set % get_num_ways(level);
     return set;
 };
