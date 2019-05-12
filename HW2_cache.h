@@ -19,9 +19,9 @@ public:
     bool dirty;
     int LRU;
     bool invalid;
-    int set_and_tag;
+    int address;
 
-    block(): LRU(0), invalid(true), tag(0), dirty(false), set_and_tag(0){};
+    block(): LRU(0), invalid(true), tag(0), dirty(false), address(0){};
 };
 
 class cache_sys {
