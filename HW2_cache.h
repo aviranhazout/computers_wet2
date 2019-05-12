@@ -20,7 +20,7 @@ public:
     int LRU;
     bool invalid;
     int address;
-
+    block* next;
     block(): LRU(0), invalid(true), tag(0), dirty(false), address(0){};
 };
 
@@ -67,13 +67,16 @@ public:
         L1 = new block*[L1Ways];
         for (int i = 0; i < L1Ways; i++){
             L1[i] = new block[L1numTags];
+            if (i > 0)
+                L1[i-1]->next = L1[i];
         }
-
         int L2Ways = (int)pow(2,L2Assoc);
         int L2numTags = (int)pow(2,L2Size-L2Assoc-BSize);
         L2 = new block*[L2Ways];
         for (int i = 0; i < L2Ways; i++){
             L2[i] = new block[L2numTags];
+            if (i > 0)
+                L2[i-1]->next = L2[i];
         }
         block_size = (int)pow(2,BSize);
         L1_way_num = L1Ways;
@@ -92,10 +95,12 @@ public:
     void mark_dirty(int level, int address);
     void copy_data(block* from, block* to, int to_level);
     void copy_from_memory(block* to, int address);
-    void get_block(int level, int address, block* ret);
+    block* get_block(int level, int address);
     int get_set_from_address(int level, int address);
     int get_tag_from_address(int level, int address);
     int get_num_ways(int level);
+    int get_num_entries(int level);
+
 };
 
 void access_cache(cache_sys CS, char operation, int address);
