@@ -48,27 +48,30 @@ void access_cache(cache_sys& CS, char operation, int address)
 {
     block* to;
     block* from;
+    if (address == 510448)
+        printf("hi\n");//for debugg
     if (CS.search_in_cache(1,address))
     {   //found in L1
-        int way = CS.find_place(1,address);
+        int way = CS.get_way(1,address);
         int set = CS.get_set_from_address(1, address);
         int tmp = CS.get_lru(1, address);
         CS.L1[way][set].LRU = -1;
         CS.update_lru(1, tmp, address);
         if (operation == 'w')
             CS.mark_dirty(1,address);
-        CS.access_time += CS.L1Access;
     }
     else if (CS.search_in_cache(2,address))
     {   //found in L2 , doesn't exist in L1
-        CS.update_lru(2, CS.get_lru(2, address), address);
-        CS.access_time += (CS.L1Access + CS.L2Access);
+        block* tmp_block = CS.get_block(2,address);
+        int tmp_lru = tmp_block->LRU;
+        tmp_block->LRU = -1;
+        CS.update_lru(2, tmp_lru, address);
         if (CS.WrAlloc == 0 && operation == 'w')
             CS.write_back(address);
         else    //copy to L1
         {
             int way = CS.find_place(1,address);
-            int set_and_tag = address >> CS.BSize;
+            int set_and_tag = address / CS.block_size;
             int set = set_and_tag % CS.L1_way_entries_num;
             to = &(CS.L1[way][set]);
             if (!(to->invalid) && to->dirty)
@@ -83,7 +86,7 @@ void access_cache(cache_sys& CS, char operation, int address)
     }
     else if (CS.VicCache == 1 && CS.search_in_cache(3,address))  //found in victim-cache
     {
-        CS.access_time += (CS.L1Access + CS.L2Access + VICTIM_CACHE_ACCESS_TIME);
+        CS.vic_access++;
         if (CS.WrAlloc == 0 && operation == 'w')
             CS.mark_dirty(3,address);
         else
@@ -94,7 +97,7 @@ void access_cache(cache_sys& CS, char operation, int address)
             block* L1_block;
             vic_block = CS.get_block(3, address);
             CS.copy_data(vic_block, &tmp, 2);
-            from->invalid = true;
+            //from->invalid = true;
             int way2 = CS.find_place(2,address);
             int set_and_tag2 = address / CS.block_size;
             int set2 = set_and_tag2 % CS.L2_way_entries_num;
@@ -126,9 +129,15 @@ void access_cache(cache_sys& CS, char operation, int address)
     else    //copy from memory
     {
         if (CS.VicCache == 1)
-            CS.access_time += (CS.L1Access + CS.L2Access + VICTIM_CACHE_ACCESS_TIME + CS.MemCyc);
+        {
+            CS.vic_access++;
+            CS.mem_access++;
+        }
         else
-            CS.access_time += (CS.L1Access + CS.L2Access + CS.MemCyc);
+        {
+            CS.mem_access++;
+        }
+
         if (CS.WrAlloc == 1 || operation == 'r')
         {
             block* L2_block;
@@ -151,7 +160,7 @@ void access_cache(cache_sys& CS, char operation, int address)
             int set1 = CS.get_set_from_address(1, address);
             L1_block = &(CS.L1[way1][set1]);
             if (!(L1_block->invalid) && L1_block->dirty)
-                CS.write_back(address);
+                CS.write_back(L1_block->address);
             CS.copy_data(L2_block, L1_block, 1);
             CS.update_lru(1, CS.L1_way_num, address);
 
@@ -232,7 +241,7 @@ int cache_sys::find_place(int level, int address)
             if (cache[i][set].LRU == num_of_ways - 1)
             {
                 if (level == 2)
-                    cache[i][set].dirty = this->snoop(address);
+                    cache[i][set].dirty = this->snoop(cache[i][set].address);
                 return i;
             }
         }
@@ -382,7 +391,6 @@ bool cache_sys::search_in_cache(int level, int address)
             printf("L2 access\n");
             break;
     }
-        //search for empty place
     for (int i = 0; i < num_of_ways; i++)
     {
         if (cache[i][set].tag == tag && !(cache[i][set].invalid))
@@ -494,4 +502,21 @@ void cache_sys::print_all()
         }
         printf("\n\n");
     }
+}
+int cache_sys::get_way(int level, int address)
+{
+    int num_ways = get_num_ways(level);
+    int set = get_set_from_address(level, address);
+    int tag = get_tag_from_address(level, address);
+    block** cache;
+    if (level == 1)
+        cache = this->L1;
+    else
+        cache = this->L2;
+    for (int i = 0; i < num_ways; i++)
+    {
+        if (cache[i][set].tag == tag)
+            return i;
+    }
+
 }

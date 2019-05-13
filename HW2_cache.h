@@ -47,13 +47,14 @@ public:
     int L1Access;
     int L2Hit;
     int L2Access;
-    int access_time;
+    int vic_access;
+    int mem_access;
 
     cache_sys(int MemCyc, int BSize, int L1Size, int L2Size, int L1Assoc, int L2Assoc,
               int L1Cyc, int L2Cyc, int WrAlloc, int VicCache) : MemCyc(MemCyc), BSize(BSize),
               L1Size(L1Size), L2Size(L2Size), L1Assoc(L1Assoc), L2Assoc(L2Assoc), L1Cyc(L1Cyc),
               L2Cyc(L2Cyc), WrAlloc(WrAlloc), VicCache(VicCache), totalTime(0), totalAcc(0), L1Hit(0),
-              L1Access(0), L2Hit(0), L2Access(0){
+              L1Access(0), L2Hit(0), L2Access(0), vic_access(0), mem_access(0){
 
         if(VicCache == 1){
             victimCache = new block[4];
@@ -80,7 +81,6 @@ public:
         L2_way_num = L2Ways;
         L1_way_entries_num = L1numTags;
         L2_way_entries_num = L2numTags;
-        access_time = 0;
     };
 
     void write_back(int address);
@@ -97,8 +97,8 @@ public:
     int get_tag_from_address(int level, int address);
     int get_num_ways(int level);
     int get_num_entries(int level);
-
-    void print_all();
+    void print_all();//for debug
+    int get_way(int level, int address);
 };
 
 void access_cache(cache_sys& CS, char operation, int address);

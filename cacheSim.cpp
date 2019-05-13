@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
 
 	cache_sys CS(MemCyc, BSize, L1Size, L2Size, L1Assoc,L2Assoc,
          L1Cyc,L2Cyc,WrAlloc,VicCache);
-
+//bool tmp = false;
 	while (getline(file, line))
 	{
 		stringstream ss(line);
@@ -91,14 +91,16 @@ int main(int argc, char *argv[]) {
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
 		access_cache(CS, operation, num);
+		//if (num == )
 		CS.print_all();
 	}
 
-
+double new_time = CS.mem_access * CS.MemCyc + CS.vic_access * VICTIM_CACHE_ACCESS_TIME;
+	new_time += CS.L2Access * CS.L2Cyc + CS.L1Access * CS.L1Cyc;
     double L1MissRate = (double)(CS.L1Access - CS.L1Hit) / (double)CS.L1Access;
     double L2MissRate = (double)(CS.L2Access - CS.L2Hit) / (double)CS.L2Access;
-    double avgAccTime = (double)CS.access_time / (double)CS.L1Access;
-
+    double avgAccTime = new_time / (double)CS.L1Access;
+//printf("time1 = %d, time2 = %d\n",CS.access_time, new_time);
 	printf("L1miss=%.03f ", L1MissRate);
 	printf("L2miss=%.03f ", L2MissRate);
 	printf("AccTimeAvg=%.03f\n", avgAccTime);
