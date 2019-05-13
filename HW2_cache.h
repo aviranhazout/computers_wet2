@@ -8,9 +8,6 @@
 #include <cmath>
 //#include "HW2_cache.cpp"
 
-double L1MissRate;
-double L2MissRate;
-double avgAccTime;
 
 
 class block{
@@ -101,9 +98,10 @@ public:
     int get_num_ways(int level);
     int get_num_entries(int level);
 
+    void print_all();
 };
 
-void access_cache(cache_sys CS, char operation, int address);
+void access_cache(cache_sys& CS, char operation, int address);
 
 
 #endif //COMPUTERS_WET2_HW2_CACHE_H

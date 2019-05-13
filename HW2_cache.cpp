@@ -44,7 +44,7 @@
  *      update lru in L1
  *      update trace data
  */
-void access_cache(cache_sys CS, char operation, int address)
+void access_cache(cache_sys& CS, char operation, int address)
 {
     block* to;
     block* from;
@@ -74,8 +74,9 @@ void access_cache(cache_sys CS, char operation, int address)
             if (!(to->invalid) && to->dirty)
                 CS.write_back(address);
             from = CS.get_block(2,address);
+            int tmp_lru = to->LRU;
             CS.copy_data(from, to, 1);
-            CS.update_lru(1, to->LRU, address);
+            CS.update_lru(1, tmp_lru, address);
             if (operation == 'w')
                 to->dirty = true;
         }
@@ -372,11 +373,13 @@ bool cache_sys::search_in_cache(int level, int address)
             cache = this->L1;
             //increase L1 access attempts
             this->L1Access++;
+            printf("L1 access\n");
             break;
         case 2:
             cache = this->L2;
-            //increase L1 access attempts
+            //increase L2 access attempts
             this->L2Access++;
+            printf("L2 access\n");
             break;
     }
         //search for empty place
@@ -384,10 +387,14 @@ bool cache_sys::search_in_cache(int level, int address)
     {
         if (cache[i][set].tag == tag && !(cache[i][set].invalid))
         {
-            if (level == 1)
+            if (level == 1) {
                 this->L1Hit++;
-            else
+                printf("L1 hit\n");
+            }
+            else {
                 this->L2Hit++;
+                printf("L2 hit\n");
+            }
             return true;
         }
     }
@@ -419,7 +426,7 @@ int cache_sys::get_num_entries(int level){
  * @return
  */
 int cache_sys::get_tag_from_address(int level, int address){
-    if (get_num_ways(level) == 1 || level == VICTIM_CACHE_LEVEL){
+    if (get_num_entries(level) == 1 || level == VICTIM_CACHE_LEVEL){
         int tag = address / (this->block_size);
         return tag;
     }
@@ -435,9 +442,56 @@ int cache_sys::get_tag_from_address(int level, int address){
  * @return
  */
 int cache_sys::get_set_from_address(int level, int address) {
-    if (get_num_ways(level) == 1 || level == VICTIM_CACHE_LEVEL) return 0;
+    if (get_num_entries(level) == 1 || level == VICTIM_CACHE_LEVEL) return 0;
     int set = address / this->block_size;
     set = set % get_num_entries(level);
     return set;
 };
 
+void cache_sys::print_all()
+{
+    if (true) //if we want to print just a part of the lines
+    {
+        int L1_out_loop = get_num_ways(1);
+        int L1_in_loop = get_num_entries(1);
+        block* to_print;
+        printf("\n ---L1--- \n");
+        for (int i = 0; i < L1_out_loop; i++)
+        {
+            printf("\n -way %d-\n",i);
+            for (int j  = 0; j < L1_in_loop; j++)
+            {
+                to_print = &this->L1[i][j];
+                printf("block %d: address = %d, tag = %d\n", j, to_print->address, to_print->tag);
+                printf("         %s",(to_print->invalid ? "invalid" : "valid"));
+                printf(", %s, LRU = %d\n", (to_print->dirty ? "dirty" : "clean"), to_print->LRU);
+            }
+        }
+        int L2_out_loop = get_num_ways(2);
+        int L2_in_loop = get_num_entries(2);
+        printf("\n ---L2--- \n");
+        for (int i = 0; i < L2_out_loop; i++)
+        {
+            printf("\n -way %d-\n",i);
+            for (int j  = 0; j < L2_in_loop; j++)
+            {
+                to_print = &this->L2[i][j];
+                printf("block %d: address = %d, tag = %d\n", j, to_print->address, to_print->tag);
+                printf("         %s",(to_print->invalid ? "invalid" : "valid"));
+                printf(", %s, LRU = %d\n", (to_print->dirty ? "dirty" : "clean"), to_print->LRU);
+            }
+        }
+        if (this->VicCache)
+        {
+            printf("\n ---victim-cache--- \n");
+            for (int j  = 0; j < VICTIM_CACHE_SIZE; j++)
+            {
+                to_print = &this->victimCache[j];
+                printf("block %d: address = %d, tag = %d\n", j, to_print->address, to_print->tag);
+                printf("         %s",(to_print->invalid ? "invalid" : "valid"));
+                printf(", %s, LRU = %d\n", (to_print->dirty ? "dirty" : "clean"), to_print->LRU);
+            }
+        }
+        printf("\n\n");
+    }
+}

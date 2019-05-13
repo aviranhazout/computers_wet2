@@ -91,7 +91,13 @@ int main(int argc, char *argv[]) {
 		// DEBUG - remove this line
 		cout << " (dec) " << num << endl;
 		access_cache(CS, operation, num);
+		CS.print_all();
 	}
+
+
+    double L1MissRate = (double)(CS.L1Access - CS.L1Hit) / (double)CS.L1Access;
+    double L2MissRate = (double)(CS.L2Access - CS.L2Hit) / (double)CS.L2Access;
+    double avgAccTime = (double)CS.access_time / (double)CS.L1Access;
 
 	printf("L1miss=%.03f ", L1MissRate);
 	printf("L2miss=%.03f ", L2MissRate);
