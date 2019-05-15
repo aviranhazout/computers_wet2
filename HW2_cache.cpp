@@ -6,7 +6,7 @@
 
 #define VICTIM_CACHE_SIZE 4
 #define VICTIM_CACHE_ACCESS_TIME 1
-#define VICTIM_CACHE_LEVEL 0
+#define VICTIM_CACHE_LEVEL 3
 
 
 /*if (address exists in L1)
@@ -48,8 +48,8 @@ void access_cache(cache_sys& CS, char operation, int address)
 {
     block* to;
     block* from;
-    if (address == 510448)
-        printf("hi\n");//for debugg
+   // if (address == 536870912)
+  //      printf("hi\n");//for debugg
     if (CS.search_in_cache(1,address))
     {   //found in L1
         int way = CS.get_way(1,address);
@@ -99,9 +99,14 @@ void access_cache(cache_sys& CS, char operation, int address)
             CS.copy_data(vic_block, &tmp, 2);
             //from->invalid = true;
             int way2 = CS.find_place(2,address);
-            int set_and_tag2 = address / CS.block_size;
-            int set2 = set_and_tag2 % CS.L2_way_entries_num;
+            int set2 = CS.get_set_from_address(2,address);
             L2_block = &(CS.L2[way2][set2]);
+            vic_block->invalid = true;
+            for (int i = 0; i < VICTIM_CACHE_SIZE; i++)
+            {
+                if (CS.victimCache[i].LRU > vic_block->LRU)
+                    CS.victimCache[i].LRU--;
+            }
             if (!(L2_block->invalid))
             {
                 CS.copy_data(L2_block, vic_block, 3);
@@ -109,11 +114,10 @@ void access_cache(cache_sys& CS, char operation, int address)
                     CS.victimCache[i].LRU++;
             }
             int way1 = CS.find_place(1,address);
-            int set_and_tag1 = address / CS.block_size;
-            int set1 = set_and_tag1 % CS.L1_way_entries_num;
+            int set1 = CS.get_set_from_address(1,address);
             L1_block = &(CS.L1[way1][set1]);
             if (!(L1_block->invalid) && L1_block->dirty)
-                CS.write_back(address);
+                CS.write_back(L1_block->address);
             CS.copy_data(&tmp, L2_block, 2);
             CS.update_lru(2, CS.L2_way_num, address);
             //free(tmp);
@@ -195,13 +199,13 @@ bool cache_sys::snoop(int address)
     int tag = this->get_tag_from_address(1, address);
     int set = this->get_set_from_address(1, address);
 
-    for (int i = 0; i < this->L1_way_entries_num; i++)
+    for (int i = 0; i < this->L1_way_num; i++)
     {
         if (this->L1[i][set].tag == tag && !(this->L1[i][set].invalid))
         {
             this->L1[i][set].invalid = true;
             //update the lru
-            for (int j = 0; j < this->L1_way_entries_num; j++)
+            for (int j = 0; j < this->L1_way_num; j++)
             {
                 if(this->L1[j][set].LRU > this->L1[i][set].LRU)
                     (this->L1[j][set].LRU)--;
@@ -374,36 +378,44 @@ block* cache_sys::get_block(int level, int address)
 bool cache_sys::search_in_cache(int level, int address)
 {
     block **cache;
-    int num_of_ways = get_num_ways(level);
-    int set = this->get_set_from_address(level, address);
     int tag = this->get_tag_from_address(level, address);
-    switch (level) {
-        case 1:
-            cache = this->L1;
-            //increase L1 access attempts
-            this->L1Access++;
-            printf("L1 access\n");
-            break;
-        case 2:
-            cache = this->L2;
-            //increase L2 access attempts
-            this->L2Access++;
-            printf("L2 access\n");
-            break;
+    if (level == 1 || level == 2) {
+        int num_of_ways = get_num_ways(level);
+        int set = this->get_set_from_address(level, address);
+        block **cache;
+        switch (level) {
+            case 1:
+                cache = this->L1;
+                //increase L1 access attempts
+                this->L1Access++;
+                //printf("L1 access\n");
+                break;
+            case 2:
+                cache = this->L2;
+                //increase L2 access attempts
+                this->L2Access++;
+                //printf("L2 access\n");
+                break;
+        }
+        for (int i = 0; i < num_of_ways; i++) {
+            if (cache[i][set].tag == tag && !(cache[i][set].invalid)) {
+                if (level == 1) {
+                    this->L1Hit++;
+                    //printf("L1 hit\n");
+                } else {
+                    this->L2Hit++;
+                    //printf("L2 hit\n");
+                }
+                return true;
+            }
+        }
     }
-    for (int i = 0; i < num_of_ways; i++)
+    else
     {
-        if (cache[i][set].tag == tag && !(cache[i][set].invalid))
-        {
-            if (level == 1) {
-                this->L1Hit++;
-                printf("L1 hit\n");
-            }
-            else {
-                this->L2Hit++;
-                printf("L2 hit\n");
-            }
-            return true;
+        block *cache = this->victimCache;
+        for (int i = 0; i < VICTIM_CACHE_SIZE; i++) {
+            if (!(cache[i].invalid) && cache[i].tag == tag)
+                return true;
         }
     }
     return false;

@@ -78,21 +78,21 @@ int main(int argc, char *argv[]) {
 		}
 
 		// DEBUG - remove this line
-		cout << "operation: " << operation;
+		//cout << "operation: " << operation;
 
 		string cutAddress = address.substr(2); // Removing the "0x" part of the address
 
 		// DEBUG - remove this line
-		cout << ", address (hex)" << cutAddress;
+		//cout << ", address (hex)" << cutAddress;
 
 		unsigned long int num = 0;
 		num = strtoul(cutAddress.c_str(), NULL, 16);
 
 		// DEBUG - remove this line
-		cout << " (dec) " << num << endl;
+		//cout << " (dec) " << num << endl;
 		access_cache(CS, operation, num);
 		//if (num == )
-		CS.print_all();
+		//CS.print_all();
 	}
 
 double new_time = CS.mem_access * CS.MemCyc + CS.vic_access * VICTIM_CACHE_ACCESS_TIME;
